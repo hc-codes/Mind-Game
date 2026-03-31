@@ -970,7 +970,8 @@ export default function App() {
               onChange={(e) => {
                 const val = e.target.value;
                 setInputValue(val);
-                if (val.toUpperCase() === (currentLevel.config.target || currentLevel.config.answer?.toString()).toUpperCase()) {
+                const target = (currentLevel.config.target || currentLevel.config.answer?.toString() || "").toUpperCase().trim();
+                if (val.toUpperCase().trim() === target) {
                   nextLevel();
                 }
               }}
@@ -1323,9 +1324,15 @@ export default function App() {
           </div>
         );
       case 'MATH':
+        const mathOptions = Array.from(new Set([
+          currentLevel.config.answer, 
+          currentLevel.config.answer + 1, 
+          currentLevel.config.answer - 1, 
+          0
+        ])).sort((a, b) => a - b);
         return (
           <div className="grid grid-cols-2 gap-4 w-full">
-            {[currentLevel.config.answer, currentLevel.config.answer + 1, currentLevel.config.answer - 1, 0].sort().map(num => (
+            {mathOptions.map(num => (
               <button 
                 key={num}
                 onClick={() => num === currentLevel.config.answer ? nextLevel() : failGame()}
@@ -1621,7 +1628,7 @@ export default function App() {
           {/* --- PLAYING SCREEN --- */}
           {gameState === 'PLAYING' && (
             <motion.div
-              key="playing"
+              key={`playing-${currentLevelIdx}`}
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0 }}
@@ -1692,7 +1699,20 @@ export default function App() {
               {/* Challenge Card */}
               <div className="bg-white p-8 rounded-[2rem] shadow-xl border border-slate-100 space-y-8 min-h-[300px] flex flex-col items-center justify-center">
                 <h3 className="text-lg font-bold text-slate-800 text-center">
-                  {currentLevel.instruction}
+                  {currentLevelIdx === 0 ? (
+                    <span>
+                      Click the{' '}
+                      <span 
+                        onClick={nextLevel} 
+                        className="cursor-pointer hover:text-indigo-600 transition-colors"
+                      >
+                        button
+                      </span>{' '}
+                      to proceed.
+                    </span>
+                  ) : (
+                    currentLevel.instruction
+                  )}
                 </h3>
 
                 <div className="w-full flex justify-center">
