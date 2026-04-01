@@ -181,7 +181,7 @@ const generateLevels = (): Level[] => {
     "Use your scroll wheel.",
     "Keep going down."
   ]);
-  add("Pattern", "Repeat the pattern: Red, Blue, Red.", "PATTERN", { sequence: ['red', 'blue', 'red'] }, [
+  add("Pattern", "Repeat the pattern: Red, Blue, Red.", "PATTERN", { sequence: [0, 1, 0] }, [
     "Remember the order.",
     "Red, then Blue, then Red.",
     "Click the colored boxes."
@@ -872,9 +872,9 @@ export default function App() {
       case 'REVERSE':
         return (
           <div className={`flex ${currentLevel.config.inverted ? 'flex-col-reverse' : 'flex-col'} gap-4 w-full`}>
-            {currentLevel.config.options.map((opt: string) => (
+            {(currentLevel.config.options || []).map((opt: string, i: number) => (
               <motion.button
-                key={opt}
+                key={`${opt}-${i}`}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => opt === currentLevel.config.goal ? nextLevel() : failGame()}
@@ -930,21 +930,48 @@ export default function App() {
           </div>
         );
       case 'SWAPPED':
-        const isGoal = (val: string) => val === currentLevel.config.goal;
+        const { goal: swappedGoal, swapped: swappedMode } = currentLevel.config;
+        const swappedOptions = swappedMode ? ['RIGHT', 'LEFT'] : ['RED', 'BLUE'];
         return (
           <div className="grid grid-cols-2 gap-4 w-full">
-            <button 
-              onClick={() => isGoal('RED') ? nextLevel() : failGame()}
-              className={`p-6 text-white font-bold rounded-xl shadow-md bg-blue-500`}
-            >
-              {currentLevel.config.swapped ? 'LEFT' : 'RED'}
-            </button>
-            <button 
-              onClick={() => isGoal('BLUE') || isGoal('LEFT') ? nextLevel() : failGame()}
-              className={`p-6 text-white font-bold rounded-xl shadow-md bg-red-500`}
-            >
-              {currentLevel.config.swapped ? 'RIGHT' : 'BLUE'}
-            </button>
+            {swappedOptions.map((opt, i) => (
+              <button 
+                key={`${opt}-${i}`}
+                onClick={() => opt === swappedGoal ? nextLevel() : failGame()}
+                className={`p-6 text-white font-bold rounded-xl shadow-md ${
+                  opt === 'RED' ? 'bg-red-500' : 
+                  opt === 'BLUE' ? 'bg-blue-500' : 
+                  'bg-indigo-600'
+                }`}
+              >
+                {opt}
+              </button>
+            ))}
+          </div>
+        );
+      case 'ORDER_BY_SIZE':
+        const sortedSizes = [...currentLevel.config.sizes].sort((a, b) => a - b);
+        return (
+          <div className="flex items-center justify-center gap-6 w-full h-48">
+            {currentLevel.config.sizes.map((size: number, i: number) => (
+              <button 
+                key={i}
+                onClick={() => {
+                  if (size === sortedSizes[clickCount]) {
+                    if (clickCount === sortedSizes.length - 1) nextLevel();
+                    else setClickCount(prev => prev + 1);
+                  } else {
+                    failGame();
+                  }
+                }}
+                style={{ width: size * 2, height: size * 2 }}
+                className={`bg-indigo-600 text-white font-bold rounded-xl shadow-lg flex items-center justify-center transition-all active:scale-90 ${
+                  clickCount > sortedSizes.indexOf(size) ? 'opacity-30 scale-75' : 'opacity-100'
+                }`}
+              >
+                {size}
+              </button>
+            ))}
           </div>
         );
       case 'HIDDEN':
@@ -966,6 +993,9 @@ export default function App() {
             <input 
               type="text"
               autoFocus
+              autoComplete="off"
+              autoCorrect="off"
+              spellCheck={false}
               value={inputValue}
               onChange={(e) => {
                 const val = e.target.value;
@@ -1012,11 +1042,14 @@ export default function App() {
       case 'RIDDLE':
       case 'TRICK_QUESTION':
       case 'MEMORY':
+        const riddleOptions = Array.from(new Set(
+          currentLevel.config.options || [currentLevel.config.answer, "42", "Maybe", "None"]
+        )).sort();
         return (
           <div className="grid grid-cols-1 gap-3 w-full">
-            {(currentLevel.config.options || [currentLevel.config.answer, "42", "Maybe", "None"]).sort().map((opt: any) => (
+            {riddleOptions.map((opt: any, i: number) => (
               <button 
-                key={opt}
+                key={`${opt}-${i}`}
                 onClick={() => opt.toString().toUpperCase() === currentLevel.config.answer?.toString().toUpperCase() || opt === currentLevel.config.goal ? nextLevel() : failGame()}
                 className="p-4 bg-white border-2 border-slate-200 hover:border-indigo-500 rounded-xl font-medium text-left px-6"
               >
@@ -1043,7 +1076,8 @@ export default function App() {
         return (
           <div className="w-full space-y-4">
             <motion.button
-              onMouseDown={() => {
+              onPointerDown={(e) => {
+                e.currentTarget.setPointerCapture(e.pointerId);
                 const start = Date.now();
                 const interval = setInterval(() => {
                   const elapsed = (Date.now() - start) / 1000;
@@ -1056,11 +1090,14 @@ export default function App() {
                 const upHandler = () => {
                   clearInterval(interval);
                   setLoadingProgress(0);
-                  window.removeEventListener('mouseup', upHandler);
+                  window.removeEventListener('pointerup', upHandler);
+                  window.removeEventListener('pointercancel', upHandler);
                 };
-                window.addEventListener('mouseup', upHandler);
+                window.addEventListener('pointerup', upHandler);
+                window.addEventListener('pointercancel', upHandler);
               }}
-              className="w-full py-6 bg-indigo-600 text-white font-black rounded-2xl shadow-xl relative overflow-hidden"
+              onContextMenu={(e) => e.preventDefault()}
+              className="w-full py-6 bg-indigo-600 text-white font-black rounded-2xl shadow-xl relative overflow-hidden touch-none select-none"
             >
               <div className="relative z-10">HOLD ME</div>
               <motion.div 
@@ -1082,6 +1119,39 @@ export default function App() {
               <div className="h-full bg-indigo-500" style={{ width: `${(shakeAmount / currentLevel.config.threshold) * 100}%` }} />
             </div>
             <p className="text-slate-400 font-bold">SHAKE IT!</p>
+          </div>
+        );
+      case 'SCROLL_FIND':
+        return (
+          <div 
+            className="w-full h-64 bg-slate-50 rounded-2xl border-2 border-slate-100 overflow-y-auto p-4 relative"
+            onScroll={(e) => {
+              const target = e.currentTarget;
+              if (target.scrollHeight - target.scrollTop <= target.clientHeight + 20) {
+                setLoadingProgress(100);
+              }
+            }}
+          >
+            <div className="h-[2000px] flex flex-col items-center justify-between py-10">
+              <div className="space-y-20 text-center">
+                <p className="text-slate-300 font-bold">Keep scrolling...</p>
+                {[...Array(15)].map((_, i) => (
+                  <p key={i} className="text-slate-200 text-[10px] italic">Deep dive in progress...</p>
+                ))}
+              </div>
+              <AnimatePresence>
+                {loadingProgress === 100 && (
+                  <motion.button 
+                    initial={{ scale: 0, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    onClick={nextLevel}
+                    className="px-8 py-4 bg-indigo-600 text-white font-bold rounded-xl shadow-lg"
+                  >
+                    WIN BUTTON
+                  </motion.button>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
         );
       case 'MULTI_STEP':
@@ -1324,17 +1394,18 @@ export default function App() {
           </div>
         );
       case 'MATH':
-        const mathOptions = Array.from(new Set([
+        const mathOpts = Array.from(new Set([
           currentLevel.config.answer, 
           currentLevel.config.answer + 1, 
-          currentLevel.config.answer - 1, 
-          0
-        ])).sort((a, b) => a - b);
+          currentLevel.config.answer - 1,
+          currentLevel.config.answer * 2,
+          Math.floor(currentLevel.config.answer / 2)
+        ])).filter(n => n !== undefined).sort((a, b) => a - b);
         return (
           <div className="grid grid-cols-2 gap-4 w-full">
-            {mathOptions.map(num => (
+            {mathOpts.map((num, i) => (
               <button 
-                key={num}
+                key={`${num}-${i}`}
                 onClick={() => num === currentLevel.config.answer ? nextLevel() : failGame()}
                 className="p-4 bg-white border-2 border-slate-200 hover:border-indigo-500 rounded-xl font-bold"
               >
